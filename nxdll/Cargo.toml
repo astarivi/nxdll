@@ -1,0 +1,38 @@
+[package]
+name = "nxdll"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+# Core
+libc = { version = "0.2.175", default-features = false }
+nxdk-rs = { path = "../../nxdk-rs" }
+
+# Parser
+goblin = { version = "0.10.5", default-features = false, features = ["alloc", "pe32"] }
+
+# Async
+#crossbeam-queue = { version = "0.3.12", default-features = false, features = ["alloc"] }
+#spin = { version = "0.10.0", features = ["fair_mutex"] }
+#oneshot = { version = "0.1.11", default-features = false, features = ["async"] }
+#x86 = "0.52.0"
+
+# Util
+ouroboros = { version = "0.18.5", default-features = false }
+lazy_static = { version = "1.5.0", default-features = false, features = ["spin_no_std"] }
+time = { version = "0.3.37", default-features = false, features = ["alloc"] }
+anyhow = { version = "1.0.94", default-features = false }
+log = "0.4.27"
+
+[lib]
+name = "nxdyn"
+crate-type = ["staticlib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+lto = true
+panic = "abort"
+codegen-units = 1

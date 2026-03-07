@@ -1,0 +1,103 @@
+import os
+import hashlib
+import subprocess
+
+env = Environment(
+    tools=['clang', 'mslink'],
+    CC='clang',
+    LINK='lld-link',
+    AR='llvm-lib',
+    SHLIBSUFFIX='.dll',
+    LIBSUFFIX='.lib',
+    NXDK_DIR=os.environ['NXDK_DIR'],
+    ENV={
+        'PATH': os.environ['PATH'],
+    }
+)
+
+INTERMEDIATE_DIR = 'objs'
+
+env['SHCCFLAGS'] = []
+env['CCFLAGS'] = []
+env['CFLAGS'] = []
+env['LINKFLAGS'] = []
+env['CPPPATH'] = []
+env['CXXPATH'] = []
+env['LIBS'] = []
+env['LIBPATH'] = []
+
+# Clang flags.
+env.Append(CFLAGS=[
+    # Platform flags
+    '-target', 'i386-pc-win32', # Always needed when targeting the Xbox
+    '-march=pentium3',
+    '-fuse-ld=lld-link',
+    '-ffreestanding',
+    '-nostdinc',
+    '-fno-builtin',
+    '-Wno-builtin-macro-redefined',
+    '-U__STDC_NO_THREADS__',
+    '-U_WIN32',
+    '-w',
+
+    # Optimization flags
+    '-O2',
+])
+
+env.Append(CPPDEFINES=[
+    '_XBOX',
+    'NXDK',
+    '__STDC__=1',
+])
+
+env.Append(CPPPATH=[
+    # Source includes
+    '$NXDK_DIR/lib/zlib/zlib',
+    '$NXDK_DIR/lib/net/nforceif/include',
+    '$NXDK_DIR/lib/net/lwip/src/include',
+    '$NXDK_DIR/lib/net/nvnetdrv',
+    '$NXDK_DIR/lib',
+    '$NXDK_DIR/lib/xboxrt/libc_extensions',
+    '$NXDK_DIR/lib/pdclib/include',
+    '$NXDK_DIR/lib/pdclib/platform/xbox/include',
+    '$NXDK_DIR/lib/winapi',
+    '$NXDK_DIR/lib/xboxrt/vcruntime',
+    os.path.join(subprocess.check_output(['clang', '-print-resource-dir'], text=True).strip(), 'include'),
+])
+
+env.Append(LINKFLAGS=[
+    '-subsystem:windows',
+    '-fixed',
+    '-base:0x1E000000', # Address call base for DLLs.
+    '-merge:.edata=.edataxb',
+    '/entry:__DllMainCRTStartup@12',
+    '/nodefaultlib',
+])
+
+env.Append(LIBS=[
+])
+
+env.Append(LIBPATH=[
+])
+
+sources = [
+    'src/dll.c',
+    'src/lib.c',
+]
+
+objs = []
+
+for src in sources:
+    base = os.path.splitext(os.path.basename(src))[0]
+    hash_suffix = hashlib.md5(src.encode()).hexdigest()[:8]
+    obj_name = f"{base}_{hash_suffix}"
+    obj = env.SharedObject(target=os.path.join(INTERMEDIATE_DIR, obj_name), source=src)
+    objs.append(obj)
+
+dll = env.SharedLibrary(
+    target='test.dll',
+    source=objs,
+    WINDOWS_EXPORT_ALL_SYMBOLS=True
+)
+
+Default(dll)
