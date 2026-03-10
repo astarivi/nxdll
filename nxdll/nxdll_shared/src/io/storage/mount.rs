@@ -4,6 +4,12 @@ use alloc::vec::Vec;
 use nxdk_rs::nxdk::mount::{nx_is_drive_mounted, nx_mount_drive, nx_mount_execution_to, nx_unmount_drive};
 use nxdk_rs::sys::winapi::GetLogicalDrives;
 
+#[derive(Eq, PartialEq, Clone)]
+pub struct XboxHardDisk {
+    device_name: &'static str,
+    logical_mounts: Box<[&'static XboxFileSystem]>
+}
+
 pub struct XboxStorage {
     hdd0: &'static XboxHardDisk,
     hdd1: Option<&'static XboxHardDisk>,
@@ -42,12 +48,6 @@ impl XboxStorage {
 
         devices
     }
-}
-
-#[derive(Eq, PartialEq, Clone)]
-pub struct XboxHardDisk {
-    device_name: &'static str,
-    logical_mounts: Box<[&'static XboxFileSystem]>
 }
 
 impl XboxHardDisk {
@@ -114,11 +114,9 @@ pub fn mount_platform_storage() {
     nx_mount_drive('J', "\\Device\\Harddisk1\\Partition3\\");
     nx_mount_drive('K', "\\Device\\Harddisk1\\Partition4\\");
     nx_mount_drive('L', "\\Device\\Harddisk1\\Partition5\\");
-    
 }
 
-/// Initializes all console storage, and returns a structure to interact it
-///
+/// Initializes all console storage and returns a structure to interact with it
 /// Actual memory leak extravaganza 草
 pub fn get_storage() -> XboxStorage {
     mount_platform_storage();

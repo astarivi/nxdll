@@ -3,14 +3,12 @@
 #![feature(alloc_error_handler)]
 
 pub mod loader;
-pub mod io;
 pub mod exports;
-pub mod utils;
 
 use core::panic::PanicInfo;
 use log::error;
 use nxdk_rs::hal::debug::debug_print_str_ln;
-use crate::utils::log::init_logger;
+use crate::loader::runtime::init::loader_init;
 
 #[macro_use]
 extern crate alloc;
@@ -20,8 +18,9 @@ static ALLOCATOR: nxdk_rs::xbox_alloc::XboxKernelAlloc = nxdk_rs::xbox_alloc::Xb
 
 #[no_mangle]
 pub extern "C" fn nx_loader_init() {
-    // Ignore if the logger cannot initialize. Nowhere to log.
-    let err = init_logger();
+    loader_init()
+        .inspect_err(|e| error!("{:?}", e))
+        .unwrap();
 }
 
 #[panic_handler]

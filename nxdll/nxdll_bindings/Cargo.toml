@@ -1,0 +1,47 @@
+[package]
+name = "nxdll_bindings"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+resolver = "2"
+
+[dependencies]
+# Core
+libc = { workspace = true }
+nxdk-rs = { workspace = true }
+log = { workspace = true }
+anyhow = { workspace = true }
+lazy_static = { workspace = true }
+time = { workspace = true }
+nxdll_shared = { path = "../nxdll_shared" }
+
+[features]
+default = ["core"]
+core = ["libpdclib", "libnxdk", "libnxdk_hal", "libnxdk_net", "libwinapi", "winmm", "libxboxrt", "libxboxkrnl"]
+zlib = ["libzlib"]
+cxx = ["libcxx"]
+sdl2 = ["libSDL2", "usb"]
+sdl2_image = ["libSDL2"]
+sdl2_ttf = ["libSDL_ttf"]
+usb = ["nxdk_usb"]
+
+# codegen Internal
+libcxx = []
+libfreetype = []
+libjpeg = []
+libnxdk = []
+libnxdk_hal = []
+libnxdk_net = []
+libpbkit = []
+libpdclib = []
+libpng = []
+libSDL2 = []
+libSDL2_image = []
+libSDL_ttf = []
+libwinapi = []
+libxboxrt = []
+libzlib = []
+nxdk_usb = []
+SDL2_test = []
+winmm = []
+libxboxkrnl = []

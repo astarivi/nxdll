@@ -1,6 +1,5 @@
-use anyhow::bail;
-use log::info;
 use crate::loader::parser::mapper::LoadedImage;
+use anyhow::bail;
 
 pub type DllMain = unsafe extern "system" fn(
     hinst_dll: *mut core::ffi::c_void,

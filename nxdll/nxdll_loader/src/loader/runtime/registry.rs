@@ -1,11 +1,12 @@
-use crate::io::storage::location::Location;
-use crate::io::threading::mutex::Mutex;
 use crate::loader::parser::mapper::LoadedImage;
 use crate::loader::runtime::loader::load_from_disk;
 use alloc::boxed::Box;
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use anyhow::anyhow;
+use nxdll_shared::io::storage::location::Location;
+use nxdll_shared::io::threading::mutex::Mutex;
+pub use nxdll_shared::loader::registry::PEExportedFunction as PEExportedFunction;
 
 pub type ArcMemoryDLL = Arc<InMemoryDLL>;
 
@@ -61,11 +62,11 @@ pub struct PEMappedImage {
     exports: Vec<PEExportedFunction>,
 }
 
-pub struct PEExportedFunction {
-    pub name: Option<Box<str>>,
-    pub ordinal: u16,
-    pub addr: *const u8,
-}
+// pub struct PEExportedFunction {
+//     pub name: Option<Box<str>>,
+//     pub ordinal: u16,
+//     pub addr: *const u8,
+// }
 
 impl InMemoryDLL {
     pub fn new_real(path: &Location, mpd_image: PEMappedImage, dependencies: Vec<PEDependency>) -> anyhow::Result<Self> {
@@ -97,6 +98,18 @@ impl InMemoryDLL {
         })
     }
 
+    pub fn new_emulated_boxed(name: Box<str>, exports: Vec<PEExportedFunction>) -> anyhow::Result<Self> {
+        Ok(Self {
+            name,
+            container: MemoryContainer::Emulated(
+                EmuContainer {
+                    emulated_exports: exports
+                }
+            ),
+            dependencies: Vec::new()
+        })
+    }
+
     pub fn get_name(&self) -> &str {
         self.name.as_ref()
     }
@@ -111,13 +124,11 @@ impl InMemoryDLL {
             }
         };
 
-        Ok(
-            exports
-                .iter()
-                .find(|e| e.name.as_ref().map(|s| s.as_ref()) == Some(name))
-                .ok_or_else(|| anyhow!("Export {} from DLL {} not found", name, self.name))?
-                .addr
-        )
+        exports
+            .iter()
+            .find(|e| e.name.as_ref().map(|s| s.as_ref()) == Some(name))
+            .map(|e| e.addr)
+            .ok_or_else(|| anyhow!("Export {} from DLL {} not found", name, self.name))
     }
 
     pub fn get_export_addr_by_ordinal(&self, ordinal: u16) -> anyhow::Result<*const u8> {
@@ -130,13 +141,14 @@ impl InMemoryDLL {
             }
         };
 
-        Ok(
-            exports
-                .iter()
-                .find(|e| e.ordinal == ordinal)
-                .ok_or_else(|| anyhow!("Export ordinal {} from DLL {} not found", ordinal, self.name))?
-                .addr
-        )
+        exports
+            // Quick lookup
+            .get(ordinal.saturating_sub(1) as usize)
+            .filter(|e| e.ordinal == ordinal)
+            // If the quick lookup fails, fallback to a linear search
+            .or_else(|| exports.iter().find(|e| e.ordinal == ordinal))
+            .map(|e| e.addr)
+            .ok_or_else(|| anyhow!("Export ordinal {} from DLL {} not found", ordinal, self.name))
     }
 
     /// Clones the Arc.

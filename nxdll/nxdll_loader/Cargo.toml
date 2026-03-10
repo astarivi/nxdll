@@ -1,0 +1,34 @@
+[package]
+name = "nxdll_loader"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+# Core
+libc = { workspace = true }
+nxdk-rs = { workspace = true }
+log = { workspace = true }
+anyhow = { workspace = true }
+lazy_static = { workspace = true }
+time = { workspace = true }
+nxdll_shared = { path = "../nxdll_shared" }
+nxdll_bindings = { path = "../nxdll_bindings", default-features = false, features = ["core", "zlib"] }
+
+# Parser
+goblin = { version = "0.10.5", default-features = false, features = ["alloc", "pe32"] }
+
+# Util
+ouroboros = { version = "0.18.5", default-features = false }
+
+[lib]
+name = "nxdll_loader"
+crate-type = ["staticlib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+lto = true
+panic = "abort"
+codegen-units = 1

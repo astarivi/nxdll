@@ -1,10 +1,10 @@
 use alloc::boxed::Box;
 use core::ptr::null_mut;
 use libc::c_char;
-use crate::io::storage::location::Location;
+use nxdll_shared::io::storage::location::Location;
+use nxdll_shared::utils::cstr_ptr_to_str;
 use crate::loader::runtime::loader::register_from_disk;
 use crate::loader::runtime::registry::{ArcMemoryDLL, PEDependency};
-use crate::utils::cstr_ptr_to_str;
 
 pub struct RegisteredDllHandle {
     pub inner: ArcMemoryDLL,

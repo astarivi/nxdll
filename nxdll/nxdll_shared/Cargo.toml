@@ -1,0 +1,14 @@
+[package]
+name = "nxdll_shared"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+# Core
+libc = { workspace = true }
+nxdk-rs = { workspace = true }
+log = { workspace = true }
+anyhow = { workspace = true }
+lazy_static = { workspace = true }
+time = { workspace = true }

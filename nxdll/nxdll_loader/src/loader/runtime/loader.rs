@@ -1,5 +1,3 @@
-use crate::io::storage::location::Location;
-use crate::io::threading::mutex::Mutex;
 use crate::loader::parser::exports::build_exports;
 use crate::loader::parser::pe::ParsedPE;
 use crate::loader::parser::runtime::call_dll_main;
@@ -9,6 +7,8 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use anyhow::{anyhow, bail};
 use lazy_static::lazy_static;
+use nxdll_shared::io::storage::location::Location;
+use nxdll_shared::io::threading::mutex::Mutex;
 
 lazy_static! {
     pub static ref DLL_REGISTRY: Mutex<Vec<ArcMemoryDLL>> = Mutex::new(Vec::new());
@@ -48,7 +48,7 @@ pub fn load_from_disk(path: &Location) -> anyhow::Result<(PEMappedImage, Vec<PED
 }
 
 /// Registers a DLL from the disk. Will load it to resolve dependencies.
-/// Returns a Dependency pointing to the loaded DLL, if consumer would
+/// Returns a Dependency pointing to the loaded DLL if the consumer would
 /// like to use it immediately.
 pub fn register_from_disk(path: &Location) -> anyhow::Result<PEDependency> {
     let dll_name = path.path.file_name()?

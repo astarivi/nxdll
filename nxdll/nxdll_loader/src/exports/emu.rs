@@ -4,10 +4,10 @@ use core::ffi::CStr;
 use core::ptr::null_mut;
 use anyhow::bail;
 use libc::c_char;
+use nxdll_shared::utils::cstr_ptr_to_str;
 use crate::exports::handle::RegisteredDllHandle;
 use crate::loader::runtime::loader::{register_emulated, register_from_disk};
 use crate::loader::runtime::registry::PEExportedFunction;
-use crate::utils::cstr_ptr_to_str;
 
 #[repr(C)]
 pub struct C_PEExportedFunction {

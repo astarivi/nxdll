@@ -1,11 +1,11 @@
-use crate::io::INTERNAL_STORAGE;
 use alloc::boxed::Box;
 use anyhow::Context;
 use goblin::pe::PE;
 use nxdk_rs::embedded_io::Read;
 use nxdk_rs::winapi::file::AccessRights;
 use ouroboros::self_referencing;
-use crate::io::storage::location::Location;
+use nxdll_shared::io::INTERNAL_STORAGE;
+use nxdll_shared::io::storage::location::Location;
 
 #[self_referencing]
 pub struct ParsedPE {

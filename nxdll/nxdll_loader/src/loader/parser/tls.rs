@@ -223,9 +223,7 @@ pub fn tls_deinit_process(image: &mut LoadedImage) {
     match call_dll_main(image, DLL_PROCESS_DETACH) {
         Ok(_) => {}
         Err(_) => {
-            error!(
-                    "Failed to call DLL main to deinit thread TLS with reason DLL_THREAD_DETACH"
-                );
+            error!("Failed to call DLL main to deinit thread TLS with reason DLL_THREAD_DETACH");
         }
     }
 
