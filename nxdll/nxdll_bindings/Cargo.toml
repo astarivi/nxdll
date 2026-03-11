@@ -17,9 +17,9 @@ nxdll_shared = { path = "../nxdll_shared" }
 
 [features]
 default = ["core"]
-core = ["libpdclib", "libnxdk", "libnxdk_hal", "libnxdk_net", "libwinapi", "winmm", "libxboxrt", "libxboxkrnl"]
+core = ["libpdclib", "libnxdk", "libnxdk_hal", "libnxdk_net", "libwinapi", "winmm", "libxboxkrnl"]
 zlib = ["libzlib"]
-cxx = ["libcxx"]
+cxx = ["libcxx", "libxboxrt"]
 sdl2 = ["libSDL2", "usb"]
 sdl2_image = ["libSDL2"]
 sdl2_ttf = ["libSDL_ttf"]

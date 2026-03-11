@@ -27,7 +27,7 @@ fn extract_symbols(library: &Path) -> Vec<String> {
             let mut parts = line.split_whitespace();
             let (_, sym_type, name) = (parts.next()?, parts.next()?, parts.next()?);
             ["T", "D", "B"].contains(&sym_type)
-                .then(|| name.strip_prefix('_').unwrap_or(name).to_string())
+                .then(|| name.to_string())
         })
         .collect()
 }
@@ -77,8 +77,6 @@ fn generate_bindings(nxdk_dir: &str) -> std::io::Result<()> {
         let mut exports  = File::create(manifest.join(format!("src/exports/{lib_name}.rs")))?;
         let mut def      = File::create(lib_dir.join(format!("{lib_name}.def")))?;
 
-        writeln!(bindings, "extern \"C\" {{")?;
-
         writeln!(exports, "use nxdll_shared::loader::registry::PEExportedFunction;")?;
         writeln!(exports, "use alloc::{{boxed::Box, vec::Vec}};")?;
         writeln!(exports, "use crate::bindings::{lib_name};")?;
@@ -89,21 +87,80 @@ fn generate_bindings(nxdk_dir: &str) -> std::io::Result<()> {
         writeln!(def, "EXPORTS")?;
 
         for (ordinal, symbol) in symbols.iter().enumerate().map(|(i, s)| (i + 1, s)) {
-            writeln!(bindings, "    #[link_name = \"{symbol}\"]\n    pub fn sym{ordinal}();")?;
+
+            if symbol.starts_with(".weak") {
+                println!("Skipping weak symbol: {}", symbol);
+                continue;
+            }
+
+            let has_at_suffix = symbol.contains('@') &&
+                symbol.chars().rev()
+                    .take_while(|c| c.is_ascii_digit())
+                    .count() > 0;
+
+            let (convention, sym, arg_size) = if symbol.starts_with('_') && has_at_suffix {
+                // stdcall: _Name@N
+                let stripped = symbol.strip_prefix('_').unwrap();
+                let at_pos = stripped.rfind('@').unwrap();
+                let size: u32 = stripped[at_pos + 1..].parse().unwrap_or(0);
+                let name = &stripped[..at_pos];
+                ("stdcall", name, Some(size))
+            } else if symbol.starts_with('@') && has_at_suffix {
+                // fastcall: @Name@N
+                let stripped = symbol.strip_prefix('@').unwrap();
+                let at_pos = stripped.rfind('@').unwrap();
+                let size: u32 = stripped[at_pos + 1..].parse().unwrap_or(0);
+                let name = &stripped[..at_pos];
+                ("fastcall", name, Some(size))
+
+            } else if symbol.starts_with('?') {
+                // thiscall: MSVC mangled ?method@Class@@...
+                // Extract arg size from the @N suffix if present, else None
+                let arg_size = if has_at_suffix {
+                    let at_pos = symbol.rfind('@').unwrap();
+                    symbol[at_pos + 1..].parse().ok()
+                } else {
+                    None
+                };
+                ("thiscall", symbol.as_str(), arg_size)
+
+            } else if symbol.starts_with('_') {
+                // cdecl: _Name
+                let name = symbol.strip_prefix('_').unwrap();
+                ("C", name, None)
+
+            } else {
+                // No decoration at all — treat as C/cdecl
+                ("C", symbol.as_str(), None)
+            };
+
+            let dummy_args = match arg_size {
+                Some(size) => {
+                    let count = size / 4;
+                    (0..count)
+                        .map(|i| format!("_arg{}: u32", i))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                }
+                None => String::new(),
+            };
+            writeln!(bindings, "extern \"{convention}\" {{")?;
+            writeln!(bindings, "    #[link_name = \"{sym}\"]\n    pub fn sym{ordinal}({dummy_args});")?;
+            writeln!(bindings, "}}")?;
             writeln!(exports,
                      "    target.push(PEExportedFunction {{ name: None, ordinal: {ordinal}, addr: {lib_name}::sym{ordinal} as *const () as *const u8 }});"
             )?;
             writeln!(def, "    {symbol} @{ordinal}")?;
         }
 
-        writeln!(bindings, "}}")?;
-        writeln!(exports, "    to.push((Box::from(\"{lib_name}\"), target));\n}}")?;
+        writeln!(exports, "    to.push((Box::from(\"{lib_name}.dll\"), target));\n}}")?;
 
         // Generate import lib
         run_command("llvm-dlltool", &[
             "-m", "i386",
             "-d", lib_dir.join(format!("{lib_name}.def")).to_str().unwrap(),
             "-l", lib_dir.join(format!("{lib_name}.lib")).to_str().unwrap(),
+            "--no-leading-underscore"
         ]);
 
         // Register feature in all three files
