@@ -86,12 +86,19 @@ fn generate_bindings(nxdk_dir: &str) -> std::io::Result<()> {
         writeln!(def, "LIBRARY {lib_name}")?;
         writeln!(def, "EXPORTS")?;
 
-        for (ordinal, symbol) in symbols.iter().enumerate().map(|(i, s)| (i + 1, s)) {
+        for (ordinal, raw_symbol) in symbols.iter().enumerate().map(|(i, s)| (i + 1, s)) {
 
-            if symbol.starts_with(".weak") {
-                println!("Skipping weak symbol: {}", symbol);
-                continue;
-            }
+            // FIXME: This dumb thing works?
+            let symbol = if raw_symbol.starts_with(".weak.") {
+                &raw_symbol
+                    .split(".default.")
+                    .next()
+                    .unwrap()
+                    .trim_start_matches(".weak.")
+                    .to_string()
+            } else {
+                raw_symbol
+            };
 
             let has_at_suffix = symbol.contains('@') &&
                 symbol.chars().rev()
@@ -128,7 +135,6 @@ fn generate_bindings(nxdk_dir: &str) -> std::io::Result<()> {
                 // cdecl: _Name
                 let name = symbol.strip_prefix('_').unwrap();
                 ("C", name, None)
-
             } else {
                 // No decoration at all — treat as C/cdecl
                 ("C", symbol.as_str(), None)

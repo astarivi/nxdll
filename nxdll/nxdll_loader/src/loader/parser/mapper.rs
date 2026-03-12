@@ -254,7 +254,7 @@ pub unsafe fn perform_relocations(
                     as *mut u32;
 
                 match typ {
-                    IMAGE_REL_BASED_HIGHLOW => {
+                    3 => {
                         let val = ptr::read(patch_addr);
                         ptr::write(patch_addr, (val as isize + delta) as u32);
                     }
