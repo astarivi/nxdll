@@ -1,11 +1,15 @@
+use crate::loader::runtime::registry::{ArcMemoryDLL, PEDependency};
 use alloc::boxed::Box;
-use anyhow::Context;
+use alloc::string::ToString;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use anyhow::{anyhow, Context};
 use goblin::pe::PE;
 use nxdk_rs::embedded_io::Read;
 use nxdk_rs::winapi::file::AccessRights;
-use ouroboros::self_referencing;
-use nxdll_shared::io::INTERNAL_STORAGE;
 use nxdll_shared::io::storage::location::Location;
+use nxdll_shared::io::INTERNAL_STORAGE;
+use ouroboros::self_referencing;
 
 #[self_referencing]
 pub struct ParsedPE {
@@ -45,6 +49,39 @@ impl ParsedPE {
                 PE::parse(bytes_ref).unwrap()
             }
         }.build())
+    }
+
+    /// Given the registry, will look for dependencies.
+    /// Won't load DLL into memory or patch IAT.
+    pub fn get_pe_dependencies(&self, registry: &Vec<ArcMemoryDLL>) -> anyhow::Result<Vec<PEDependency>> {
+        let (imports, own_name) = self.with_pe(|pe_raw|
+            (&pe_raw.imports, pe_raw.name.unwrap_or("unknown").to_string())
+        );
+
+        let mut deps: Vec<PEDependency> = Vec::new();
+
+        for import in imports {
+            let dll = {
+                registry
+                    .iter()
+                    .find(|d| d.get_name().eq_ignore_ascii_case(import.dll))
+                    .cloned()
+            }.ok_or_else(|| anyhow!(
+                "Required DLL {} referenced by DLL {} not found (Registry time)",
+                import.dll,
+                own_name,
+            ))?;
+
+            if dll.is_emulated() {
+                continue;
+            }
+
+            if !deps.iter().any(|d| Arc::ptr_eq(&d.dll, &dll)) {
+                deps.push(dll.get_dependency(&dll)?);
+            }
+        }
+
+        Ok(deps)
     }
 
     pub fn unload(self) {

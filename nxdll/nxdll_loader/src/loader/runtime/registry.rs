@@ -28,7 +28,7 @@ pub type ArcMemoryDLL = Arc<InMemoryDLL>;
 pub struct PEDependency {
     pub dll: ArcMemoryDLL,
 
-    /// None if emulated. Keeps the PEMappedImage alive.
+    /// None if we have opted to manually remove this dep.
     pub image: Option<Arc<PEMappedImage>>
 }
 
@@ -62,16 +62,8 @@ pub struct PEMappedImage {
     exports: Vec<PEExportedFunction>,
 }
 
-// pub struct PEExportedFunction {
-//     pub name: Option<Box<str>>,
-//     pub ordinal: u16,
-//     pub addr: *const u8,
-// }
-
 impl InMemoryDLL {
-    pub fn new_real(path: &Location, mpd_image: PEMappedImage, dependencies: Vec<PEDependency>) -> anyhow::Result<Self> {
-        let arc_img = Arc::new(mpd_image);
-
+    pub fn new_real(path: &Location, dependencies: Vec<PEDependency>) -> anyhow::Result<Self> {
         Ok(Self {
             name: path.path.file_name()?
                 .ok_or_else(|| anyhow!("No filename found in path"))?
@@ -79,7 +71,7 @@ impl InMemoryDLL {
             container: MemoryContainer::Loaded(
                 PEContainer {
                     path: path.clone(),
-                    image: Mutex::new(Arc::downgrade(&arc_img)),
+                    image: Mutex::new(Weak::new()),
                 }
             ),
             dependencies,
@@ -108,6 +100,13 @@ impl InMemoryDLL {
             ),
             dependencies: Vec::new()
         })
+    }
+
+    pub fn is_emulated(&self) -> bool {
+        match &self.container {
+            MemoryContainer::Emulated(_) => true,
+            _ => false
+        }
     }
 
     pub fn get_name(&self) -> &str {
@@ -151,7 +150,6 @@ impl InMemoryDLL {
             .ok_or_else(|| anyhow!("Export ordinal {} from DLL {} not found", ordinal, self.name))
     }
 
-    /// Clones the Arc.
     pub fn get_dependency(&self, own_ref: &ArcMemoryDLL) -> anyhow::Result<PEDependency> {
         Ok(PEDependency {
             dll: Arc::clone(own_ref),
@@ -177,7 +175,7 @@ impl PEContainer {
             return Ok(al_img)
         }
 
-        let new_image = Arc::new(load_from_disk(&self.path)?.0);
+        let new_image = Arc::new(load_from_disk(&self.path)?);
 
         *image = Arc::downgrade(&new_image);
 

@@ -2,7 +2,7 @@ use crate::loader::parser::exports::build_exports;
 use crate::loader::parser::pe::ParsedPE;
 use crate::loader::parser::runtime::call_dll_main;
 use crate::loader::parser::{mapper, tls};
-use crate::loader::runtime::registry::{ArcMemoryDLL, InMemoryDLL, PEDependency, PEExportedFunction, PEMappedImage};
+use crate::loader::runtime::registry::{ArcMemoryDLL, InMemoryDLL, PEExportedFunction, PEMappedImage};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use anyhow::{anyhow, bail};
@@ -14,7 +14,7 @@ lazy_static! {
     pub static ref DLL_REGISTRY: Mutex<Vec<ArcMemoryDLL>> = Mutex::new(Vec::new());
 }
 
-pub fn load_from_disk(path: &Location) -> anyhow::Result<(PEMappedImage, Vec<PEDependency>)> {
+pub fn load_from_disk(path: &Location) -> anyhow::Result<PEMappedImage> {
     let registry = DLL_REGISTRY.lock();
 
     let parsed_pe = ParsedPE::create(path)?;
@@ -26,7 +26,7 @@ pub fn load_from_disk(path: &Location) -> anyhow::Result<(PEMappedImage, Vec<PED
         mapper::perform_relocations(&loaded_image, &parsed_pe)?;
     }
 
-    let dependencies = mapper::resolve_imports(
+    mapper::resolve_imports(
         &loaded_image,
         &parsed_pe,
         &registry,
@@ -44,68 +44,55 @@ pub fn load_from_disk(path: &Location) -> anyhow::Result<(PEMappedImage, Vec<PED
 
     call_dll_main(&loaded_image, tls::DLL_PROCESS_ATTACH)?;
 
-    Ok((PEMappedImage::new(loaded_image, exports), dependencies))
+    Ok(PEMappedImage::new(loaded_image, exports))
 }
 
-/// Registers a DLL from the disk. Will load it to resolve dependencies.
-/// Returns a Dependency pointing to the loaded DLL if the consumer would
-/// like to use it immediately.
-pub fn register_from_disk(path: &Location) -> anyhow::Result<PEDependency> {
+/// Adds a given DLL to the registry.
+pub fn register_from_disk(path: &Location) -> anyhow::Result<ArcMemoryDLL> {
     let dll_name = path.path.file_name()?
         .ok_or_else(|| anyhow!("No filename found in path"))?;
 
+    let mut registry = DLL_REGISTRY.lock();
+
+    if registry
+        .iter()
+        .find(|x| x.get_name() == &dll_name)
+        .is_some()
     {
-        let registry = DLL_REGISTRY.lock();
-        if registry
-            .iter()
-            .find(|x| x.get_name() == &dll_name)
-            .is_some()
-        {
-            bail!("This DLL is already registered");
-        }
+        bail!("This DLL is already registered");
     }
 
-    let loaded = load_from_disk(path)?;
+    let parsed_pe = ParsedPE::create(path)?;
+    let pe_deps = parsed_pe.get_pe_dependencies(&registry)?;
+
     let memory_dll = Arc::new(InMemoryDLL::new_real(
         path,
-        loaded.0,
-        loaded.1
+        pe_deps
     )?);
 
-    let return_dep = memory_dll.get_dependency(&memory_dll)?;
+    registry.push(
+        Arc::clone(&memory_dll)
+    );
 
-    {
-        let mut registry = DLL_REGISTRY.lock();
-        registry.push(
-            memory_dll
-        );
-    }
-
-    Ok(return_dep)
+    Ok(memory_dll)
 }
 
-pub fn register_emulated(dll_name: &str, exports: Vec<PEExportedFunction>) -> anyhow::Result<PEDependency>{
+/// Adds emulated DLL to the registry.
+pub fn register_emulated(dll_name: &str, exports: Vec<PEExportedFunction>) -> anyhow::Result<ArcMemoryDLL>{
+    let mut registry = DLL_REGISTRY.lock();
+    if registry
+        .iter()
+        .find(|x| x.get_name() == dll_name)
+        .is_some()
     {
-        let registry = DLL_REGISTRY.lock();
-        if registry
-            .iter()
-            .find(|x| x.get_name() == dll_name)
-            .is_some()
-        {
-            bail!("This DLL is already registered");
-        }
+        bail!("This DLL is already registered");
     }
 
     let memory_dll = Arc::new(InMemoryDLL::new_emulated(dll_name, exports)?);
 
-    let return_dep = memory_dll.get_dependency(&memory_dll)?;
+    registry.push(
+        Arc::clone(&memory_dll)
+    );
 
-    {
-        let mut registry = DLL_REGISTRY.lock();
-        registry.push(
-            memory_dll
-        );
-    }
-
-    Ok(return_dep)
+    Ok(memory_dll)
 }

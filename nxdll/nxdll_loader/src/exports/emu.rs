@@ -60,7 +60,7 @@ pub extern "C" fn nx_register_emulated_dll(dll_name: *const c_char, dll: *const 
         let exports = dll_ref.to_rust();
 
         let handle = RegisteredDllHandle::boxed(
-            register_emulated(name, exports)?.dll
+            register_emulated(name, exports)?
         );
 
         Ok(Box::into_raw(handle))

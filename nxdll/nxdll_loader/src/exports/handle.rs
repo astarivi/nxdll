@@ -45,7 +45,7 @@ pub extern "C" fn nx_register_dll(c_path: *const c_char) -> *mut RegisteredDllHa
         let win_location = Location::from_windows_path(path)?;
 
         let handle = RegisteredDllHandle::boxed(
-            register_from_disk(&win_location)?.dll
+            register_from_disk(&win_location)?
         );
 
         Ok(Box::into_raw(handle))

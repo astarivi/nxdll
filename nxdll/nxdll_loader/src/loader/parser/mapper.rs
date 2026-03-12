@@ -1,3 +1,4 @@
+use alloc::string::ToString;
 use crate::loader::parser::pe::ParsedPE;
 use crate::loader::parser::tls;
 use crate::loader::parser::tls::TlsCallback;
@@ -9,6 +10,7 @@ use core::alloc::Layout;
 use core::ptr;
 use goblin::pe::section_table::IMAGE_SCN_CNT_UNINITIALIZED_DATA;
 use goblin::pe::PE;
+use log::info;
 use nxdk_rs::sys::winapi::*;
 
 pub struct TLSInfo {
@@ -280,10 +282,10 @@ pub fn resolve_imports(
     image: &LoadedImage,
     pe: &ParsedPE,
     registry: &Vec<ArcMemoryDLL>
-) -> anyhow::Result<Vec<PEDependency>> {
-    let imports = pe.with_pe(|pe_raw| &pe_raw.imports);
-
-    let mut deps: Vec<PEDependency> = Vec::new();
+) -> anyhow::Result<()> {
+    let (imports, own_name) = pe.with_pe(|pe_raw|
+        (&pe_raw.imports, pe_raw.name.unwrap_or("unknown").to_string())
+    );
 
     for import in imports {
         let dll = {
@@ -292,13 +294,10 @@ pub fn resolve_imports(
                 .find(|d| d.get_name().eq_ignore_ascii_case(import.dll))
                 .cloned()
         }.ok_or_else(|| anyhow!(
-            "Required DLL {} for IAT not found",
-            import.dll
+                "Required DLL {} referenced by DLL {} not found (IAT time)",
+                import.dll,
+                own_name,
         ))?;
-
-        if !deps.iter().any(|d| Arc::ptr_eq(&d.dll, &dll)) {
-            deps.push(dll.get_dependency(&dll)?);
-        }
 
         let export_addr = if import.ordinal != 0 {
             dll.get_export_addr_by_ordinal(import.ordinal)?
@@ -306,11 +305,13 @@ pub fn resolve_imports(
             dll.get_export_addr_by_name(&import.name)?
         };
 
+//        info!("Mapping {} -> {} | Signature: {} | Address: {:p}", own_name, import.dll, &import.name, export_addr);
+
         unsafe {
             let iat_entry = image.base.add(import.offset) as *mut u32;
             ptr::write(iat_entry, export_addr as u32);
         }
     }
 
-    Ok(deps)
+    Ok(())
 }
